@@ -480,11 +480,21 @@ let filter='todos', guestOn=false;
 async function getData(){
   try{
     const rows = await sbFetch('inscripciones?select=*&order=id.asc');
-    // Also keep localStorage in sync for offline fallback
-    localStorage.setItem(KEY, JSON.stringify(rows));
-    return rows;
+    // Map lowercase Supabase columns back to camelCase
+    const mapped = rows.map(r=>({
+      id: r.id,
+      tipo: r.tipo,
+      nombre: r.nombre,
+      email: r.email,
+      telefono: r.telefono,
+      fecha: r.fecha,
+      relacionId: r.relacionid||null,
+      relacionNombre: r.relacionnombre||null
+    }));
+    localStorage.setItem(KEY, JSON.stringify(mapped));
+    return mapped;
   } catch(e){
-    console.warn('Supabase read failed, using localStorage', e);
+    console.warn('Supabase read failed, using localStorage:', e);
     try{return JSON.parse(localStorage.getItem(KEY)||'[]');}catch{return [];}
   }
 }
@@ -496,18 +506,49 @@ async function saveData(d){
 
 async function sbInsert(records){
   try{
-    await sbFetch('inscripciones', {
+    // Normalize to lowercase column names (Supabase lowercases unquoted identifiers)
+    const normalized = records.map(r=>({
+      id: r.id,
+      tipo: r.tipo,
+      nombre: r.nombre,
+      email: r.email,
+      telefono: r.telefono,
+      fecha: r.fecha,
+      relacionid: r.relacionId||null,
+      relacionnombre: r.relacionNombre||null
+    }));
+    const res = await fetch(SB_URL+'/rest/v1/inscripciones', {
       method:'POST',
-      prefer:'resolution=merge-duplicates',
-      body: JSON.stringify(records)
+      headers:{
+        'apikey': SB_KEY,
+        'Authorization': 'Bearer '+SB_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(normalized)
     });
-  } catch(e){ console.warn('Supabase insert failed', e); }
+    if(!res.ok){
+      const err = await res.text();
+      console.error('Supabase insert error:', res.status, err);
+    } else {
+      console.log('Supabase insert OK');
+    }
+  } catch(e){ console.error('Supabase insert failed:', e); }
 }
 
 async function sbDelete(id){
   try{
-    await sbFetch('inscripciones?id=eq.'+id, { method:'DELETE' });
-  } catch(e){ console.warn('Supabase delete failed', e); }
+    const res = await fetch(SB_URL+'/rest/v1/inscripciones?id=eq.'+id, {
+      method:'DELETE',
+      headers:{
+        'apikey': SB_KEY,
+        'Authorization': 'Bearer '+SB_KEY,
+        'Content-Type': 'application/json'
+      }
+    });
+    if(!res.ok) console.error('Supabase delete error:', res.status, await res.text());
+    else console.log('Deleted id:', id);
+  } catch(e){ console.error('Supabase delete failed:', e); }
 }
 
 async function showTab(id){
