@@ -750,7 +750,7 @@ async function setFilter(f,btn){
   await renderTable();
 }
 async function renderDashboard(){
-  const data=getData();
+  const data=await getData();
   const al=data.filter(r=>r.tipo==='alumno').length;
   const inv=data.filter(r=>r.tipo==='invitado').length;
   const total=data.length, rem=Math.max(0,MAX-total);
